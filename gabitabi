@@ -1,0 +1,188 @@
+#!/usr/bin/env python
+#
+# Copyright 2022 Red Hat Inc.
+# SPDX-License-Identifier: Apache-2.0
+#
+import argparse
+import csv
+import json
+import logging
+import os
+import requests
+import sys
+
+
+logging.basicConfig(
+    format="%(module)s : %(asctime)s : %(levelname)s : %(message)s",
+    datefmt="%m/%d/%Y %I:%M:%S %p",
+    level=logging.INFO,
+)
+LOG = logging.getLogger("gabitabi")
+
+
+class GabiError(Exception):
+    """Errors specific to gabi"""
+    pass
+
+
+class GabiTabiError(Exception):
+    """Errors specific to gabitabi"""
+    pass
+
+
+def healthcheck(url, token):
+    """Verify that gabi is available."""
+    headers = {"Authorization": f"Bearer {token}"}
+    h_url = f"{url}/healthcheck"
+    resp = requests.get(h_url, headers=headers)
+    if not resp.ok:
+        raise GabiError(f"HTTP {resp.status_code} {resp.reason} : {resp.text}")
+    data = resp.json()
+    if data["status"] != "OK":
+        raise GabiError(f"Gabi healthcheck returned {data['status']}")
+
+    LOG.info("gabi is available")
+
+    return True
+
+
+def submit_query_request(url, token, query):
+    """Submit the query to gabi in the expected shape"""
+    query_data = {"query": query}
+    headers = {"Authorization": f"Bearer {token}"}
+    q_url = f"{url}/query"
+    LOG.info("Submitting query to gabi")
+    resp = requests.post(q_url, headers=headers, json=query_data)
+    if not resp.ok:
+        raise GabiError(f"HTTP {resp.status_code} {resp.reason} : {resp.text}")
+
+    data = resp.json()
+    if data["error"]:
+        raise GabiError(data["error"])
+
+    return data
+
+
+def process_results(out_file_name, fieldsep, data, format_csv=True):
+    """Process gabi json result into csv"""
+    out = sys.stdout if not out_file_name else open(out_file_name, "wt")
+    try:
+        if format_csv:
+            LOG.info(f"Writing {len(data['result'])} CSV records to {out_file_name or 'STDOUT'}")
+            writer = csv.writer(out, quoting=csv.QUOTE_ALL, delimiter=fieldsep)
+            writer.writerows(data["result"])
+        else:
+            LOG.info(f"Writing JSON data to {out_file_name or 'STDOUT'}")
+            out.write(json.dumps(data["result"]))
+    finally:
+        out.flush()
+        out.close()
+
+
+def validate_args(url, token, query):
+    """Validate that url, token, and query are not empty."""
+    LOG.info("Validating arguments")
+    if not url:
+        raise GabiTabiError("The gabi instance URL is required")
+    if not token:
+        raise GabiTabiError("Your OCP console token is required")
+    if not query:
+        LOG.info("No query to process.")
+        return False
+
+    return True
+
+
+def process_query(out_file_name, fieldsep, url, token, query, format_csv=True):
+    """Validate gabi parameters, submit the query, format the result for csv."""
+    if validate_args(url, token, query):
+        result = submit_query_request(url, token, query)
+        process_results(out_file_name, fieldsep, result, format_csv=format_csv)
+
+
+if __name__ == "__main__":
+    def gabitabi_argparser():
+        """Initialize parser and set arguments"""
+        arg_parser = argparse.ArgumentParser(
+            description="gabitabi: Submit a SQL query to gabi and format the response as CSV."
+        )
+        arg_parser.add_argument(
+            "-u",
+            "--url",
+            metavar="GABIURL",
+            dest="url",
+            required=False,
+            help="Gabi instance URL. Can also use env GABI_URL",
+        )
+        arg_parser.add_argument(
+            "-t",
+            "--token",
+            metavar="TOKEN",
+            dest="token",
+            required=False,
+            help="Openshift console token. Can also use env OCP_CONSOLE_TOKEN",
+        )
+        arg_parser.add_argument(
+            "-q",
+            "--query",
+            metavar="QUERY",
+            dest="query",
+            required=False,
+            help="SQL query to execute. If '-', will read from STDIN",
+        )
+        arg_parser.add_argument(
+            "-Q",
+            "--query-file",
+            metavar="QUERYFILE",
+            dest="query_file",
+            required=False,
+            help="Process query from file. (Overrides -q)",
+        )
+        arg_parser.add_argument(
+            "-o",
+            "--output",
+            metavar="FILE",
+            dest="out_file_name",
+            required=False,
+            help="Output file name. If omitted, will use STDOUT",
+        )
+        arg_parser.add_argument(
+            "--sep",
+            metavar="SEP",
+            dest="separator",
+            required=False,
+            default="\t",
+            help="Output field separator. Default is TAB.",
+        )
+        arg_parser.add_argument(
+            "--no-csv", action="store_false", dest="csv", required=False, default=True, help="Do not convert to CSV."
+        )
+
+        return arg_parser
+
+
+    def process_args(args):
+        """Procerss the parsed arguments to the program"""
+        if not args.url:
+            args.url = os.environ.get("GABI_URL")
+        if not args.token:
+            args.token = os.environ.get("OCP_CONSOLE_TOKEN")
+        if args.query_file:
+            args.query = open(args.query_file, "rt").read()
+        elif args.query == '-':
+            args.query = sys.stdin.read()
+
+        if type(args.query) == "bytes":
+            args.query = args.query.decode("utf-8")
+
+        return args
+
+
+    # Init, get, and process the arguments
+    args = process_args(gabitabi_argparser().parse_args())
+
+    # Verify that gabi is available
+    healthcheck(args.url, args.token)
+
+    # Call the main processing entrypoint
+    process_query(args.out_file_name, args.separator, args.url, args.token, args.query, format_csv=args.csv)
