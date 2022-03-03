@@ -74,6 +74,7 @@ select table_schema,
     by table_schema,
        table_name
 ;
+EOF
 ```
 
 ### Read query from file
@@ -99,4 +100,5 @@ select table_schema,
     by table_schema,
        table_name
 ;
+EOF
 ```
