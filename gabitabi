@@ -65,7 +65,7 @@ def submit_query_request(url, token, query):
 
 def process_results(out_file_name, fieldsep, data, format_csv=True):
     """Process gabi json result into csv"""
-    if data is not None:
+    if data is not None and data["result"] is not None:
         out = sys.stdout if not out_file_name else open(out_file_name, "wt")
         try:
             if format_csv:
