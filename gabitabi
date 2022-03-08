@@ -65,18 +65,21 @@ def submit_query_request(url, token, query):
 
 def process_results(out_file_name, fieldsep, data, format_csv=True):
     """Process gabi json result into csv"""
-    out = sys.stdout if not out_file_name else open(out_file_name, "wt")
-    try:
-        if format_csv:
-            LOG.info(f"Writing {len(data['result'])} CSV records to {out_file_name or 'STDOUT'}")
-            writer = csv.writer(out, quoting=csv.QUOTE_ALL, delimiter=fieldsep)
-            writer.writerows(data["result"])
-        else:
-            LOG.info(f"Writing JSON data to {out_file_name or 'STDOUT'}")
-            out.write(json.dumps(data["result"]))
-    finally:
-        out.flush()
-        out.close()
+    if data is not None:
+        out = sys.stdout if not out_file_name else open(out_file_name, "wt")
+        try:
+            if format_csv:
+                LOG.info(f"Writing {len(data['result'])} CSV records to {out_file_name or 'STDOUT'}")
+                writer = csv.writer(out, quoting=csv.QUOTE_ALL, delimiter=fieldsep)
+                writer.writerows(data["result"])
+            else:
+                LOG.info(f"Writing JSON data to {out_file_name or 'STDOUT'}")
+                out.write(json.dumps(data["result"]))
+        finally:
+            out.flush()
+            out.close()
+    else:
+        LOG.info("No results returned")
 
 
 def validate_args(url, token, query):
