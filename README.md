@@ -9,9 +9,9 @@ Download and copy `gabitabi` to somewhere in your `$PATH`.
 ## Usage
 
 ```
-gabitabi [-h] [-u GABIURL] [-t TOKEN] [-q QUERY] [-Q QUERYFILE] [-o FILE] [--sep SEP] [--no-csv]
+usage: gabitabi [-h] [-u GABIURL] [-t TOKEN] [-q QUERY] [-Q QUERYFILE] [-o FILE] [--sep SEP] [--no-csv] [--ping] [--debug]
 
-gabitabi: Submit a SQL query to `gabi` and format the response as CSV.
+gabitabi: Submit a SQL query to gabi and format the response as CSV.
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -20,13 +20,15 @@ optional arguments:
   -t TOKEN, --token TOKEN
                         Openshift console token. Can also use env OCP_CONSOLE_TOKEN
   -q QUERY, --query QUERY
-                        Query to execute. If '-', will read from STDIN
+                        SQL query to execute. If '-', will read from STDIN
   -Q QUERYFILE, --query-file QUERYFILE
                         Process query from file. (Overrides -q)
   -o FILE, --output FILE
                         Output file name. If omitted, will use STDOUT
   --sep SEP             Output field separator. Default is TAB.
-  --no-csv              Do not convert JSON to CSV.
+  --no-csv              Do not convert to CSV.
+  --ping                Detect if gabi is available and exit.
+  --debug               Set logging level to DEBUG.
 ```
 
 ## Examples

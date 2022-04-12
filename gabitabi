@@ -20,6 +20,13 @@ logging.basicConfig(
 LOG = logging.getLogger("gabitabi")
 
 
+GABI_REQUEST_DEBUG_TMPL = (
+    "gabi request::{0}    gabi url: {{url}}{0}    gabi headers: {{headers}}{0}    gabi query: {{query_data}}".format(
+        os.linesep
+    )
+)
+
+
 class GabiError(Exception):
     """Errors specific to gabi"""
     pass
@@ -34,6 +41,7 @@ def healthcheck(url, token):
     """Verify that gabi is available."""
     headers = {"Authorization": f"Bearer {token}"}
     h_url = f"{url}/healthcheck"
+    LOG.debug(GABI_REQUEST_DEBUG_TMPL.format(url=h_url, headers=headers, query_data={}))
     resp = requests.get(h_url, headers=headers)
     if not resp.ok:
         raise GabiError(f"HTTP {resp.status_code} {resp.reason} : {resp.text}")
@@ -52,6 +60,7 @@ def submit_query_request(url, token, query):
     headers = {"Authorization": f"Bearer {token}"}
     q_url = f"{url}/query"
     LOG.info("Submitting query to gabi")
+    LOG.debug(GABI_REQUEST_DEBUG_TMPL.format(url=q_url, headers=headers, query_data=json.dumps(query_data)))
     resp = requests.post(q_url, headers=headers, json=query_data)
     if not resp.ok:
         raise GabiError(f"HTTP {resp.status_code} {resp.reason} : {resp.text}")
@@ -160,6 +169,22 @@ if __name__ == "__main__":
         arg_parser.add_argument(
             "--no-csv", action="store_false", dest="csv", required=False, default=True, help="Do not convert to CSV."
         )
+        arg_parser.add_argument(
+            "--ping",
+            dest="only_ping",
+            action="store_true",
+            default=False,
+            required=False,
+            help="Detect if gabi is available and exit.",
+        )
+        arg_parser.add_argument(
+            "--debug",
+            dest="do_debug",
+            action="store_true",
+            default=False,
+            required=False,
+            help="Set logging level to DEBUG.",
+        )
 
         return arg_parser
 
@@ -178,6 +203,9 @@ if __name__ == "__main__":
         if type(args.query) == "bytes":
             args.query = args.query.decode("utf-8")
 
+        if args.do_debug:
+            LOG.setLevel(logging.DEBUG)
+
         return args
 
 
@@ -186,6 +214,8 @@ if __name__ == "__main__":
 
     # Verify that gabi is available
     healthcheck(args.url, args.token)
+    if args.only_ping:
+        sys.exit(0)
 
     # Call the main processing entrypoint
     process_query(args.out_file_name, args.separator, args.url, args.token, args.query, format_csv=args.csv)
