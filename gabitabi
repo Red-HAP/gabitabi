@@ -203,6 +203,7 @@ if __name__ == "__main__":
 
         if args.url is None or args.token is None:
             # No environment, no args?  Probably need some help here.
+            sys.stderr.write("Error: URL and token not set\n")
             parser.print_help()
             exit(0)
 
