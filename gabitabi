@@ -189,8 +189,9 @@ if __name__ == "__main__":
         return arg_parser
 
 
-    def process_args(args):
+    def process_args(parser):
         """Procerss the parsed arguments to the program"""
+        args = parser.parse_args()
         if not args.url:
             args.url = os.environ.get("GABI_URL")
         if not args.token:
@@ -199,6 +200,11 @@ if __name__ == "__main__":
             args.query = open(args.query_file, "rt").read()
         elif args.query == '-':
             args.query = sys.stdin.read()
+
+        if args.url is None or args.token is None:
+            # No environment, no args?  Probably need some help here.
+            parser.print_help()
+            exit(0)
 
         if type(args.query) == "bytes":
             args.query = args.query.decode("utf-8")
@@ -210,7 +216,7 @@ if __name__ == "__main__":
 
 
     # Init, get, and process the arguments
-    args = process_args(gabitabi_argparser().parse_args())
+    args = process_args(gabitabi_argparser())
 
     # Verify that gabi is available
     healthcheck(args.url, args.token)
