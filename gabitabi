@@ -37,12 +37,12 @@ class GabiTabiError(Exception):
     pass
 
 
-def healthcheck(url, token):
+def healthcheck(url, token, verify=True):
     """Verify that gabi is available."""
     headers = {"Authorization": f"Bearer {token}"}
     h_url = f"{url}/healthcheck"
     LOG.debug(GABI_REQUEST_DEBUG_TMPL.format(url=h_url, headers=headers, query_data={}))
-    resp = requests.get(h_url, headers=headers)
+    resp = requests.get(h_url, headers=headers, verify=verify)
     if not resp.ok:
         raise GabiError(f"HTTP {resp.status_code} {resp.reason} : {resp.text}")
     data = resp.json()
@@ -54,14 +54,14 @@ def healthcheck(url, token):
     return True
 
 
-def submit_query_request(url, token, query):
+def submit_query_request(url, token, query, verify=True):
     """Submit the query to gabi in the expected shape"""
     query_data = {"query": query}
     headers = {"Authorization": f"Bearer {token}"}
     q_url = f"{url}/query"
     LOG.info("Submitting query to gabi")
     LOG.debug(GABI_REQUEST_DEBUG_TMPL.format(url=q_url, headers=headers, query_data=json.dumps(query_data)))
-    resp = requests.post(q_url, headers=headers, json=query_data)
+    resp = requests.post(q_url, headers=headers, json=query_data, verify=verify)
     if not resp.ok:
         raise GabiError(f"HTTP {resp.status_code} {resp.reason} : {resp.text}")
 
@@ -105,11 +105,12 @@ def validate_args(url, token, query):
     return True
 
 
-def process_query(out_file_name, fieldsep, url, token, query, format_csv=True):
+def process_query(out_file_name, url, token, query, fieldsep, format_csv=True, verify=True):
     """Validate gabi parameters, submit the query, format the result for csv."""
-    if validate_args(url, token, query):
-        result = submit_query_request(url, token, query)
-        process_results(out_file_name, fieldsep, result, format_csv=format_csv)
+    if not validate_args(url, token, query):
+        exit(1)
+    result = submit_query_request(url, token, query, verify)
+    process_results(out_file_name, fieldsep, result, format_csv=format_csv)
 
 
 if __name__ == "__main__":
@@ -185,6 +186,14 @@ if __name__ == "__main__":
             required=False,
             help="Set logging level to DEBUG.",
         )
+        arg_parser.add_argument(
+            '--noverify',
+            dest='verify',
+            action='store_false',
+            default=True,
+            required=False,
+            help='Do not verify the SSL certificate',
+        )
 
         return arg_parser
 
@@ -220,9 +229,12 @@ if __name__ == "__main__":
     args = process_args(gabitabi_argparser())
 
     # Verify that gabi is available
-    healthcheck(args.url, args.token)
+    healthcheck(args.url, args.token, args.verify)
     if args.only_ping:
         sys.exit(0)
 
     # Call the main processing entrypoint
-    process_query(args.out_file_name, args.separator, args.url, args.token, args.query, format_csv=args.csv)
+    process_query(
+        args.out_file_name, args.url, args.token, args.query,
+        args.separator, verify=args.verify
+    )
